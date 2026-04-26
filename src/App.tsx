@@ -210,7 +210,7 @@ export default function App() {
     }
   };
 
-  const handleCheckIn = async (rsvpId: string) => {
+  const handleCheckIn = React.useCallback(async (rsvpId: string) => {
     try {
       const docRef = doc(db, 'konfirmasi', rsvpId);
       await updateDoc(docRef, {
@@ -224,29 +224,81 @@ export default function App() {
       setCheckInStatus({ type: 'error', message: 'Gagal Check-in.' });
       setTimeout(() => setCheckInStatus(null), 3000);
     }
-  };
+  }, []);
 
   const QRScanner = ({ onScan }: { onScan: (id: string) => void }) => {
-    useEffect(() => {
-      const scanner = new Html5QrcodeScanner(
-        "qr-reader",
-        { fps: 10, qrbox: { width: 250, height: 250 } },
-        /* verbose= */ false
-      );
+    const [scannerError, setScannerError] = useState<string | null>(null);
+    const [isStarted, setIsStarted] = useState(false);
 
-      scanner.render((decodedText) => {
-        onScan(decodedText);
-        scanner.clear();
-      }, (error) => {
-        // scan failure, usually harmless
-      });
+    useEffect(() => {
+      let scanner: Html5QrcodeScanner | null = null;
+      
+      const startScanner = async () => {
+        try {
+          // Explicitly check for camera permission first to provide better error message
+          await navigator.mediaDevices.getUserMedia({ video: true });
+          
+          scanner = new Html5QrcodeScanner(
+            "qr-reader",
+            { 
+              fps: 10, 
+              qrbox: { width: 250, height: 250 },
+              aspectRatio: 1.0,
+              showTorchButtonIfSupported: true
+            },
+            /* verbose= */ false
+          );
+
+          scanner.render((decodedText) => {
+            onScan(decodedText);
+          }, (error) => {
+            // scan failure is constant searching, ignore
+          });
+          
+          setIsStarted(true);
+        } catch (err: any) {
+          console.error("Camera permission error:", err);
+          setScannerError(err.message || 'Izin kamera ditolak atau kamera tidak ditemukan.');
+        }
+      };
+
+      // Small timeout to ensure DOM is ready
+      const timeout = setTimeout(startScanner, 500);
 
       return () => {
-        scanner.clear().catch(error => console.error("Failed to clear scanner", error));
+        clearTimeout(timeout);
+        if (scanner) {
+          scanner.clear().catch(error => console.error("Failed to clear scanner", error));
+        }
       };
     }, [onScan]);
 
-    return <div id="qr-reader" className="w-full max-w-sm mx-auto overflow-hidden rounded-2xl border-4 border-zinc-100" />;
+    return (
+      <div className="relative">
+        <div id="qr-reader" className="w-full max-w-sm mx-auto overflow-hidden rounded-2xl border-4 border-zinc-100 bg-black min-h-[300px]" />
+        {!isStarted && !scannerError && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-900/10 rounded-2xl p-6 text-center">
+             <RefreshCcw className="w-8 h-8 text-emerald-600 animate-spin mb-4" />
+             <p className="text-sm font-bold text-zinc-600">Menyiapkan Kamera...</p>
+          </div>
+        )}
+        {scannerError && (
+          <div className="absolute inset-0 flex items-center justify-center bg-zinc-900/90 rounded-2xl p-6 text-center z-50">
+             <div className="text-white">
+                <AlertCircle className="w-12 h-12 mx-auto mb-4 text-rose-500" />
+                <p className="font-bold mb-2">Kamera Tidak Diakses</p>
+                <p className="text-xs opacity-70 mb-4">{scannerError}</p>
+                <button 
+                  onClick={() => window.location.reload()}
+                  className="px-6 py-2 bg-white text-zinc-900 rounded-xl font-bold text-sm"
+                >
+                  Coba Lagi (Reload)
+                </button>
+             </div>
+          </div>
+        )}
+      </div>
+    );
   };
 
   const handleResetRSVP = async () => {
