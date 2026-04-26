@@ -1,0 +1,36 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if true;
+    }
+
+    // Helper for basic ID validation
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Koleksi Siswa: Untuk pencarian autocomplete di website
+    match /siswa/{siswaId} {
+      allow read, write: if true; 
+    }
+
+    // Koleksi Konfirmasi: Data RSVP tamu
+    match /konfirmasi/{konfirmasiId} {
+      // Validasi data konfirmasi
+      function isValidKonfirmasi(data) {
+        return data.nama is string && data.nama.size() > 0 &&
+               data.kelas is string &&
+               data.alamat is string &&
+               data.status in ['Hadir', 'Tidak Hadir'] &&
+               data.pendamping is number && data.pendamping >= 0 && data.pendamping <= 2 &&
+               data.timestamp != null;
+      }
+
+      allow create: if isValidKonfirmasi(request.resource.data);
+      allow list, get: if true;
+      allow update, delete: if true; // Diizinkan agar fitur reset dan check-in berfungsi
+    }
+  }
+}

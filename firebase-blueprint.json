@@ -1,0 +1,39 @@
+{
+  "entities": {
+    "Siswa": {
+      "title": "Siswa",
+      "description": "Data siswa untuk autocomplete pendaftaran",
+      "type": "object",
+      "properties": {
+        "nama": { "type": "string", "description": "Nama lengkap siswa" },
+        "kelas": { "type": "string", "description": "Kelas siswa" },
+        "alamat": { "type": "string", "description": "Alamat siswa" }
+      },
+      "required": ["nama", "kelas", "alamat"]
+    },
+    "Konfirmasi": {
+      "title": "Konfirmasi Kehadiran",
+      "description": "Data konfirmasi kehadiran tamu",
+      "type": "object",
+      "properties": {
+        "nama": { "type": "string", "description": "Nama lengkap siswa" },
+        "kelas": { "type": "string", "description": "Kelas siswa" },
+        "alamat": { "type": "string", "description": "Alamat siswa" },
+        "status": { "type": "string", "enum": ["Hadir", "Tidak Hadir"], "description": "Status kehadiran" },
+        "pendamping": { "type": "number", "description": "Jumlah pendamping (max 2)" },
+        "timestamp": { "type": "string", "format": "date-time", "description": "Waktu konfirmasi" }
+      },
+      "required": ["nama", "kelas", "alamat", "status", "pendamping", "timestamp"]
+    }
+  },
+  "firestore": {
+    "siswa/{siswaId}": {
+      "schema": "Siswa",
+      "description": "Koleksi data siswa"
+    },
+    "konfirmasi/{konfirmasiId}": {
+      "schema": "Konfirmasi",
+      "description": "Koleksi data konfirmasi kehadiran"
+    }
+  }
+}
