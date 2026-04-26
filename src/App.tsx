@@ -617,10 +617,10 @@ export default function App() {
         {/* Background Image for Welcome Screen */}
         <div 
           className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-transform duration-[10s] scale-110"
-          style={{ backgroundImage: 'url("https://lh3.googleusercontent.com/d/1R7bhls15OABg7rIJoOo9PrNMJbJgVCrw")' }}
+          style={{ backgroundImage: 'url("https://lh3.googleusercontent.com/d/1seVbgPcSCLIb3TLhE3IrbHpPpGFo6XCb")' }}
         >
-          <div className="absolute inset-0 bg-zinc-950/60 backdrop-blur-[2px]"></div>
-          <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/40 to-transparent"></div>
+          <div className="absolute inset-0 bg-zinc-950/40 backdrop-blur-[1px]"></div>
+          <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/80 via-zinc-950/10 to-transparent"></div>
         </div>
 
         <motion.div 
@@ -643,9 +643,11 @@ export default function App() {
                />
             </motion.div>
           </div>
-            <h1 className="text-3xl md:text-5xl font-bold text-white mb-2 font-display">Pengukuhan Alumni</h1>
-            <p className="text-zinc-300 text-lg mb-1 leading-relaxed">Angkatan Ke- XI</p>
-            <p className="text-zinc-400 text-sm mb-8 leading-relaxed italic">
+            <p className="text-emerald-400 font-black text-[10px] tracking-[0.4em] uppercase mb-4 opacity-80">Digital Invitation</p>
+            <h2 className="text-2xl md:text-3xl font-light text-zinc-300 tracking-[0.2em] uppercase mb-1">Undangan</h2>
+            <h1 className="text-4xl md:text-6xl font-black text-white mb-2 font-display uppercase tracking-tight leading-none">Pengukuhan Alumni</h1>
+            <p className="text-zinc-200 text-lg md:text-xl mb-1 font-bold tracking-widest">Angkatan Ke- XI</p>
+            <p className="text-zinc-400 text-xs md:text-sm mb-10 tracking-[0.2em] italic font-medium uppercase">
               Tahun Pelajaran 2025/2026
             </p>
           <motion.button
@@ -666,7 +668,7 @@ export default function App() {
       {/* Global Background Image */}
       <div 
         className="fixed inset-0 z-[-1] bg-cover bg-center bg-no-repeat grayscale-[20%] opacity-15"
-        style={{ backgroundImage: 'url("https://lh3.googleusercontent.com/d/1R7bhls15OABg7rIJoOo9PrNMJbJgVCrw")' }}
+        style={{ backgroundImage: 'url("https://lh3.googleusercontent.com/d/1seVbgPcSCLIb3TLhE3IrbHpPpGFo6XCb")' }}
       >
         <div className="absolute inset-0 bg-gradient-to-br from-white/80 via-zinc-50/90 to-emerald-50/80"></div>
       </div>
@@ -763,7 +765,7 @@ export default function App() {
               <span className="text-zinc-400 text-sm md:text-lg font-medium block mt-1 tracking-widest uppercase">Tahun Pelajaran 2025/2026</span>
             </h1>
             <p className="max-w-2xl mx-auto text-zinc-600 text-lg mb-12 font-medium">
-              Assalamu'alaikum Wr. Wb. Kami mengundang Bapak/Ibu/Saudara/i Orang tua / Wali Murid  MTs KH A Wahab Muhsin kelas IX  untuk hadir pada acara pengukuhan.
+              Assalamu'alaikum Wr. Wb. Kami mengundang Bapak/Ibu/Saudara/i Orang tua / Wali Murid  MTs KH A Wahab Muhsin kelas IX  untuk hadir pada acara pengukuhan Alumni.
             </p>
             
             {/* Countdown */}
