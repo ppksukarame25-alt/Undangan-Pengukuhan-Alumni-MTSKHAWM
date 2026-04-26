@@ -444,12 +444,11 @@ export default function App() {
       pdf.setFontSize(10);
       pdf.text('MTs KH A WAHAB MUHSIN', 50, 28, { align: 'center' });
       
-      pdf.setFontSize(7);
+      pdf.setFontSize(8);
       pdf.setFont('helvetica', 'normal');
       pdf.setTextColor(200, 250, 220);
-      pdf.text('Angkatan Ke- XI', 50, 32, { align: 'center' });
-      pdf.text('KOMPLEK PONDOK PESANTREN SUKARAME TASIKMALAYA', 50, 36, { align: 'center' });
-      pdf.text('TAHUN PELAJARAN 2025/2026', 50, 40, { align: 'center' });
+      pdf.text('Angkatan Ke- XI', 50, 33, { align: 'center' });
+      pdf.text('TAHUN PELAJARAN 2025/2026', 50, 38, { align: 'center' });
 
       // Invitation Card Body
       pdf.setFillColor(255, 255, 255);
