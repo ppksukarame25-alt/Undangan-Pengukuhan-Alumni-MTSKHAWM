@@ -625,11 +625,11 @@ export default function App() {
                />
             </motion.div>
           </div>
-          <h1 className="text-3xl md:text-5xl font-bold text-white mb-4 font-display">Pengukuhan Alumni</h1>
-          <p className="text-zinc-400 text-lg mb-8 leading-relaxed">
-            MTs KH A Wahab Muhsin <br />
-            Tahun Pelajaran 2025/2026
-          </p>
+            <h1 className="text-3xl md:text-5xl font-bold text-white mb-2 font-display">Pengukuhan Alumni</h1>
+            <p className="text-zinc-300 text-lg mb-1 leading-relaxed">Angkatan Ke- XI</p>
+            <p className="text-zinc-400 text-sm mb-8 leading-relaxed italic">
+              Tahun Pelajaran 2025/2026
+            </p>
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
@@ -664,7 +664,7 @@ export default function App() {
           />
           <div className="flex flex-col">
             <span className="text-[10px] uppercase font-black tracking-widest text-emerald-600 leading-none mb-0.5">MTs KH A Wahab Muhsin</span>
-            <span className="text-[8px] uppercase font-bold text-zinc-400 tracking-tighter leading-none">Pengukuhan Alumni 2025/2026</span>
+            <span className="text-[8px] uppercase font-bold text-zinc-400 tracking-tighter leading-none whitespace-nowrap">Angkatan XI • TP 2025/2026</span>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -739,9 +739,10 @@ export default function App() {
             <span className="inline-block px-4 py-1.5 mb-6 text-sm font-semibold tracking-wider text-emerald-600 bg-white/40 backdrop-blur-sm rounded-full border border-emerald-100 uppercase">
               Digital Invitation
             </span>
-            <h1 className="text-4xl md:text-6xl font-bold mb-6 font-display tracking-tight text-zinc-900">
+            <h1 className="text-4xl md:text-6xl font-bold mb-6 font-display tracking-tight text-zinc-900 leading-tight">
               Pengukuhan Alumni <br />
-              <span className="text-emerald-700 drop-shadow-sm">Angkatan 2025/2026</span>
+              <span className="text-emerald-700 text-2xl md:text-4xl block mt-2">Angkatan Ke- XI</span>
+              <span className="text-zinc-400 text-sm md:text-lg font-medium block mt-1 tracking-widest uppercase">Tahun Pelajaran 2025/2026</span>
             </h1>
             <p className="max-w-2xl mx-auto text-zinc-600 text-lg mb-12 font-medium">
               Assalamu'alaikum Wr. Wb. Kami mengundang Bapak/Ibu/Saudara/i Orang tua / Wali Murid  MTs KH A Wahab Muhsin kelas IX  untuk hadir pada acara pengukuhan.
