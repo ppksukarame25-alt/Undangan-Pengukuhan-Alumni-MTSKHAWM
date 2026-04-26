@@ -235,16 +235,23 @@ export default function App() {
       
       const startScanner = async () => {
         try {
-          // Explicitly check for camera permission first to provide better error message
-          await navigator.mediaDevices.getUserMedia({ video: true });
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const hasCamera = devices.some(device => device.kind === 'videoinput');
           
+          if (!hasCamera) {
+            setScannerError('Kamera tidak ditemukan pada perangkat ini.');
+            return;
+          }
+
           scanner = new Html5QrcodeScanner(
             "qr-reader",
             { 
-              fps: 10, 
+              fps: 15, 
               qrbox: { width: 250, height: 250 },
               aspectRatio: 1.0,
-              showTorchButtonIfSupported: true
+              showTorchButtonIfSupported: true,
+              rememberLastUsedCamera: true,
+              supportedScanTypes: [0] // 0 means Html5QrcodeScanType.SCAN_TYPE_CAMERA
             },
             /* verbose= */ false
           );
@@ -252,18 +259,17 @@ export default function App() {
           scanner.render((decodedText) => {
             onScan(decodedText);
           }, (error) => {
-            // scan failure is constant searching, ignore
+            // ignore scan failures
           });
           
           setIsStarted(true);
         } catch (err: any) {
-          console.error("Camera permission error:", err);
-          setScannerError(err.message || 'Izin kamera ditolak atau kamera tidak ditemukan.');
+          console.error("Scanner initialization error:", err);
+          setScannerError(err.message || 'Gagal memulai scanner.');
         }
       };
 
-      // Small timeout to ensure DOM is ready
-      const timeout = setTimeout(startScanner, 500);
+      const timeout = setTimeout(startScanner, 1000);
 
       return () => {
         clearTimeout(timeout);
@@ -277,13 +283,14 @@ export default function App() {
       <div className="relative">
         <div id="qr-reader" className="w-full max-w-sm mx-auto overflow-hidden rounded-2xl border-4 border-zinc-100 bg-black min-h-[300px]" />
         {!isStarted && !scannerError && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-900/10 rounded-2xl p-6 text-center">
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-50 rounded-2xl p-6 text-center z-10">
              <RefreshCcw className="w-8 h-8 text-emerald-600 animate-spin mb-4" />
-             <p className="text-sm font-bold text-zinc-600">Menyiapkan Kamera...</p>
+             <p className="text-sm font-bold text-zinc-600">Menunggu Izin Kamera...</p>
+             <p className="text-[10px] text-zinc-400 mt-2">Pastikan Anda telah mengizinkan akses kamera di browser.</p>
           </div>
         )}
         {scannerError && (
-          <div className="absolute inset-0 flex items-center justify-center bg-zinc-900/90 rounded-2xl p-6 text-center z-50">
+          <div className="absolute inset-0 flex items-center justify-center bg-zinc-950 rounded-2xl p-6 text-center z-50">
              <div className="text-white">
                 <AlertCircle className="w-12 h-12 mx-auto mb-4 text-rose-500" />
                 <p className="font-bold mb-2">Kamera Tidak Diakses</p>
@@ -627,7 +634,7 @@ export default function App() {
               <span className="text-emerald-700 drop-shadow-sm">Angkatan 2025/2026</span>
             </h1>
             <p className="max-w-2xl mx-auto text-zinc-600 text-lg mb-12 font-medium">
-              Assalamu'alaikum Wr. Wb. Kami mengundang Bapak/Ibu/Saudara/i Alumni MTs KH A Wahab Muhsin untuk hadir pada acara pengukuhan.
+              Assalamu'alaikum Wr. Wb. Kami mengundang Bapak/Ibu/Saudara/i Orang tua / Wali Murid  MTs KH A Wahab Muhsin kelas IX  untuk hadir pada acara pengukuhan.
             </p>
             
             {/* Countdown */}
@@ -917,9 +924,22 @@ export default function App() {
                 <p className="text-zinc-500 text-sm mt-2">Terima kasih telah melakukan konfirmasi kehadiran.</p>
               </div>
 
-              <div ref={barcodeRef} className="bg-zinc-50 p-6 rounded-3xl border-2 border-dashed border-zinc-200 mb-6 flex flex-col items-center">
-                <p className="text-[10px] uppercase font-bold tracking-widest text-zinc-400 mb-4">Scan Barcode Check-in</p>
-                <div className="bg-white p-4 rounded-2xl shadow-xl">
+              <div ref={barcodeRef} className="bg-white p-8 rounded-3xl border border-zinc-200 mb-6 flex flex-col items-center">
+                {/* Header for PDF Export */}
+                <div className="w-full text-center mb-6">
+                  <div className="flex items-center justify-center gap-3 mb-4">
+                    <div className="w-12 h-12 bg-emerald-900 rounded-full flex items-center justify-center text-white font-black text-xl">W</div>
+                    <div className="text-left">
+                      <p className="text-xs font-black text-zinc-900 leading-tight">MTs KH A WAHAB MUHSIN</p>
+                      <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest">Digital Invitation</p>
+                    </div>
+                  </div>
+                  <div className="h-0.5 w-full bg-zinc-100 mb-6"></div>
+                  <p className="text-lg font-black text-zinc-900 uppercase tracking-tighter leading-tight">{successRSVP.nama}</p>
+                  <p className="text-[11px] text-zinc-500 font-bold uppercase tracking-wide">{successRSVP.kelas} • {successRSVP.alamat}</p>
+                </div>
+
+                <div className="bg-white p-6 rounded-2xl border-2 border-dashed border-zinc-100 shadow-sm mb-6">
                   <QRCodeCanvas 
                     value={successRSVP.id || ''} 
                     size={160} 
@@ -927,9 +947,10 @@ export default function App() {
                     includeMargin={false}
                   />
                 </div>
-                <div className="mt-4 text-center">
-                   <p className="font-black text-xl uppercase tracking-tighter text-zinc-900">{successRSVP.nama}</p>
-                   <p className="text-xs text-zinc-500 font-bold">{successRSVP.kelas}</p>
+
+                <div className="text-center">
+                  <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-1">SCAN QR CODE</p>
+                  <p className="text-[9px] text-zinc-300 font-medium italic">Harap tunjukkan kode ini kepada petugas saat memasuki area acara.</p>
                 </div>
               </div>
 
