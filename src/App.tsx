@@ -229,74 +229,104 @@ export default function App() {
   const QRScanner = ({ onScan }: { onScan: (id: string) => void }) => {
     const [scannerError, setScannerError] = useState<string | null>(null);
     const [isStarted, setIsStarted] = useState(false);
+    const [permissionStatus, setPermissionStatus] = useState<'prompt' | 'granted' | 'denied'>('prompt');
 
     useEffect(() => {
-      let scanner: Html5QrcodeScanner | null = null;
-      
-      const startScanner = () => {
+      const html5QrCode = new (window as any).Html5Qrcode("qr-reader");
+      let isMounted = true;
+
+      const startScanning = async () => {
         try {
-          const scannerConfig = { 
+          // Force a permission check first
+          await navigator.mediaDevices.getUserMedia({ video: true });
+          if (!isMounted) return;
+          setPermissionStatus('granted');
+
+          const qrConfig = { 
             fps: 15, 
-            qrbox: { width: 250, height: 250 },
-            aspectRatio: 1.0,
-            showTorchButtonIfSupported: true,
-            rememberLastUsedCamera: true
+            qrbox: (viewWidth: number, viewHeight: number) => {
+              const minDim = Math.min(viewWidth, viewHeight);
+              const size = Math.floor(minDim * 0.7);
+              return { width: size, height: size };
+            },
+            aspectRatio: 1.0
           };
 
-          scanner = new Html5QrcodeScanner(
-            "qr-reader",
-            scannerConfig,
-            /* verbose= */ false
+          await html5QrCode.start(
+            { facingMode: "environment" },
+            qrConfig,
+            (decodedText: string) => {
+              onScan(decodedText);
+            },
+            () => {
+              // Ignore scan failures (searching...)
+            }
           );
-
-          scanner.render((decodedText) => {
-            onScan(decodedText);
-          }, (error) => {
-            // Ignore common scan failures
-          });
           
-          setIsStarted(true);
+          if (isMounted) setIsStarted(true);
         } catch (err: any) {
-          console.error("Scanner initialization error:", err);
-          setScannerError('Gagal memuat scanner QR. Pastikan izin kamera diberikan.');
+          console.error("Camera fail:", err);
+          if (isMounted) {
+            setScannerError(err.message || 'Gagal mengakses kamera. Pastikan izin diberikan.');
+            setPermissionStatus('denied');
+          }
         }
       };
 
-      // Ensure DOM is ready, specifically for the qr-reader div
-      const timeout = setTimeout(startScanner, 1500);
+      // Start immediately
+      startScanning();
 
       return () => {
-        clearTimeout(timeout);
-        if (scanner) {
-          scanner.clear().catch(err => console.debug("Scanner clear skipped", err));
+        isMounted = false;
+        if (html5QrCode && html5QrCode.isScanning) {
+          html5QrCode.stop().catch((e: any) => console.log("Stop failed", e));
         }
       };
     }, [onScan]);
 
     return (
-      <div className="relative">
-        <div id="qr-reader" className="w-full max-w-sm mx-auto overflow-hidden rounded-2xl border-4 border-zinc-100 bg-black min-h-[300px]" />
-        {!isStarted && !scannerError && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-50 rounded-2xl p-6 text-center z-10">
-             <RefreshCcw className="w-8 h-8 text-emerald-600 animate-spin mb-4" />
-             <p className="text-sm font-bold text-zinc-600">Mengaktifkan Kamera...</p>
-             <p className="text-[10px] text-zinc-400 mt-2 italic px-8">Klik "Allow" atau "Izinkan" jika muncul permintaan akses kamera.</p>
+      <div className="relative group">
+        <div id="qr-reader" className="w-full max-w-sm mx-auto overflow-hidden rounded-3xl border-4 border-zinc-100 bg-zinc-900 min-h-[350px] shadow-2xl transition-all group-hover:border-emerald-500/20" />
+        
+        {(!isStarted || permissionStatus === 'prompt') && !scannerError && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-50 rounded-3xl p-8 text-center z-10 border border-zinc-200">
+             <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mb-6">
+                <RefreshCcw className="w-8 h-8 text-emerald-600 animate-spin" />
+             </div>
+             <p className="text-lg font-black text-zinc-900 mb-2 uppercase tracking-tight">Menyiapkan Kamera</p>
+             <p className="text-xs text-zinc-500 font-medium leading-relaxed max-w-[200px]">
+                Sedang meminta izin akses kamera. <br />
+                Harap klik <span className="text-emerald-600 font-bold">"Allow"</span> pada notifikasi browser Anda.
+             </p>
           </div>
         )}
+
         {scannerError && (
-          <div className="absolute inset-0 flex items-center justify-center bg-zinc-950 rounded-2xl p-6 text-center z-50">
+          <div className="absolute inset-0 flex items-center justify-center bg-zinc-950 rounded-3xl p-8 text-center z-50">
              <div className="text-white">
-                <AlertCircle className="w-12 h-12 mx-auto mb-4 text-rose-500" />
-                <p className="font-bold mb-2 uppercase tracking-wide">Kamera Bermasalah</p>
-                <p className="text-[11px] opacity-70 mb-4">{scannerError}</p>
+                <div className="w-16 h-16 bg-rose-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <AlertCircle className="w-8 h-8 text-rose-500" />
+                </div>
+                <p className="font-black text-xl mb-2 uppercase tracking-wide">Akses Ditolak</p>
+                <p className="text-[12px] text-zinc-400 mb-8 leading-relaxed px-4">
+                  Sistem tidak dapat mengakses kamera. <br />
+                  Silakan periksa pengaturan izin kamera di browser Anda.
+                </p>
                 <button 
                   onClick={() => window.location.reload()}
-                  className="px-6 py-2 bg-white text-zinc-900 rounded-xl font-bold text-sm shadow-xl"
+                  className="w-full py-4 bg-white text-zinc-900 rounded-2xl font-black text-xs tracking-widest shadow-xl hover:bg-zinc-100 transition-all border-b-4 border-zinc-200 active:border-b-0 active:translate-y-1"
                 >
-                  RELOAD HALAMAN
+                  RELOAD & COBA LAGI
                 </button>
              </div>
           </div>
+        )}
+        
+        {isStarted && (
+           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 bg-emerald-600/90 text-white rounded-full backdrop-blur-md flex items-center gap-2 border border-white/20">
+              <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+              <span className="text-[10px] font-black uppercase tracking-widest">Kamera Aktif</span>
+           </div>
         )}
       </div>
     );
@@ -345,80 +375,111 @@ export default function App() {
     if (!successRSVP) return;
     
     try {
-      // Create high-quality PDF
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
         format: [100, 150]
       });
 
-      // Draw PDF manually for reliability
       const primaryColor = '#064e3b'; // emerald-900
       const accentColor = '#059669'; // emerald-600
       const textColor = '#18181b'; // zinc-900
       const muteColor = '#71717a'; // zinc-500
 
-      // Header Section
+      // Helper to load image
+      const loadImage = (url: string): Promise<HTMLImageElement> => {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => resolve(img);
+          img.onerror = reject;
+          img.src = url;
+        });
+      };
+
+      // Background accent
+      pdf.setFillColor(252, 252, 252);
+      pdf.rect(0, 0, 100, 150, 'F');
+
+      // Top Header Banner
       pdf.setFillColor(primaryColor);
-      pdf.rect(0, 0, 100, 35, 'F');
+      pdf.rect(0, 0, 100, 45, 'F');
 
-      // Logo Circle
-      pdf.setFillColor(255, 255, 255);
-      pdf.circle(18, 17.5, 8, 'F');
-      
-      // Logo Letter "W"
-      pdf.setTextColor(primaryColor);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(16);
-      pdf.text('W', 15.5, 20.5);
+      try {
+        const logo = await loadImage('https://lh3.googleusercontent.com/d/1QO6rjDhWJAooG5U-oFuzmaQjkTlCTmeC');
+        // Logo in Header
+        pdf.setFillColor(255, 255, 255);
+        pdf.circle(50, 15, 10, 'F');
+        pdf.addImage(logo, 'PNG', 43, 8, 14, 14);
+      } catch (e) {
+        console.warn("Logo load failed for PDF, using placeholder", e);
+        pdf.setFillColor(255, 255, 255);
+        pdf.circle(50, 15, 10, 'F');
+        pdf.setTextColor(primaryColor);
+        pdf.setFontSize(14);
+        pdf.text('W', 50, 17, { align: 'center' });
+      }
 
-      // School Name
+      // School Info
       pdf.setTextColor(255, 255, 255);
-      pdf.setFontSize(11);
       pdf.setFont('helvetica', 'bold');
-      pdf.text('MTs KH A WAHAB MUHSIN', 30, 16);
+      pdf.setFontSize(10);
+      pdf.text('MTs KH A WAHAB MUHSIN', 50, 30, { align: 'center' });
       
-      pdf.setFontSize(8);
+      pdf.setFontSize(7);
       pdf.setFont('helvetica', 'normal');
       pdf.setTextColor(200, 250, 220);
-      pdf.text('PENGUKUHAN ALUMNI 2025/2026', 30, 21);
+      pdf.text('KOMPLEK PONDOK PESANTREN SUKARAME TASIKMALAYA', 50, 34, { align: 'center' });
+      pdf.text('PENGUKUHAN ALUMNI TAHUN PELAJARAN 2025/2026', 50, 38, { align: 'center' });
 
-      // Separator Line
-      pdf.setDrawColor(255, 255, 255);
+      // Invitation Card Body
+      pdf.setFillColor(255, 255, 255);
+      pdf.roundedRect(10, 50, 80, 85, 5, 5, 'F');
+      
+      // Shadow-like effect
+      pdf.setDrawColor(230, 230, 230);
       pdf.setLineWidth(0.5);
-      pdf.line(10, 35, 90, 35);
+      pdf.roundedRect(10, 50, 80, 85, 5, 5, 'S');
 
-      // Attendee Info
+      // Guest Name
       pdf.setTextColor(textColor);
-      pdf.setFontSize(16);
+      pdf.setFontSize(14);
       pdf.setFont('helvetica', 'bold');
       const name = successRSVP.nama.toUpperCase();
-      pdf.text(name, 50, 55, { align: 'center' });
+      pdf.text(name, 50, 65, { align: 'center' });
       
-      pdf.setFontSize(10);
+      pdf.setFontSize(9);
       pdf.setFont('helvetica', 'normal');
       pdf.setTextColor(muteColor);
-      pdf.text(`${successRSVP.kelas} • ${successRSVP.alamat}`, 50, 62, { align: 'center' });
+      pdf.text(`${successRSVP.kelas} • ${successRSVP.alamat}`, 50, 71, { align: 'center' });
+
+      // Separator Line
+      pdf.setDrawColor(245, 245, 245);
+      pdf.line(20, 78, 80, 78);
 
       // QR Code Container
-      pdf.setDrawColor(240, 240, 240);
-      pdf.rect(20, 75, 60, 60);
+      pdf.setFillColor(250, 250, 250);
+      pdf.roundedRect(25, 83, 50, 50, 3, 3, 'F');
 
       // Get QR Code from Canvas
       const canvas = barcodeRef.current?.querySelector('canvas');
       if (canvas) {
         const qrImgData = canvas.toDataURL('image/png');
-        pdf.addImage(qrImgData, 'PNG', 22.5, 77.5, 55, 55);
+        pdf.addImage(qrImgData, 'PNG', 27.5, 85.5, 45, 45);
       }
 
-      // Footer
-      pdf.setFontSize(9);
+      // Footer Instructions
+      pdf.setFontSize(7);
       pdf.setTextColor(accentColor);
       pdf.setFont('helvetica', 'bold');
-      pdf.text('SCAN QR CODE CHECK-IN', 50, 145, { align: 'center' });
+      pdf.text('SCAN QR CODE SAAT CHECK-IN DI LOKASI', 50, 140, { align: 'center' });
+      
+      pdf.setFontSize(6);
+      pdf.setTextColor(200, 200, 200);
+      pdf.text('Digital Invitation System © 2026', 50, 145, { align: 'center' });
 
       // Save
-      pdf.save(`Barcode_Pengukuhan_${successRSVP.nama.replace(/\s+/g, '_')}.pdf`);
+      pdf.save(`Undangan_Pengukuhan_${successRSVP.nama.replace(/\s+/g, '_')}.pdf`);
     } catch (error) {
       console.error('PDF manual export error:', error);
       alert('Gagal mengekspor PDF.');
