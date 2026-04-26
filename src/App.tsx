@@ -228,85 +228,69 @@ export default function App() {
 
   const QRScanner = ({ onScan }: { onScan: (id: string) => void }) => {
     const [scannerError, setScannerError] = useState<string | null>(null);
-    const [isStarted, setIsStarted] = useState(false);
-    const [permissionStatus, setPermissionStatus] = useState<'prompt' | 'granted' | 'denied'>('prompt');
+    const [status, setStatus] = useState<'idle' | 'initializing' | 'scanning' | 'error'>('idle');
     const qrReaderRef = useRef<Html5Qrcode | null>(null);
 
-    useEffect(() => {
-      let isMounted = true;
-
-      const startScanning = async () => {
-        if (!isMounted) return;
-        
+    const stopScanner = async () => {
+      if (qrReaderRef.current && qrReaderRef.current.isScanning) {
         try {
-          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            throw new Error('Browser tidak mendukung akses kamera.');
-          }
-
-          // Check for element existence
-          const element = document.getElementById("qr-reader");
-          if (!element) {
-             console.log("qr-reader element not found yet, retrying...");
-             return;
-          }
-
-          await navigator.mediaDevices.getUserMedia({ video: true });
-          if (!isMounted) return;
-          setPermissionStatus('granted');
-
-          const html5QrCode = new Html5Qrcode("qr-reader");
-          qrReaderRef.current = html5QrCode;
-
-          const qrConfig = { 
-            fps: 15, 
-            qrbox: (viewWidth: number, viewHeight: number) => {
-              const minDim = Math.min(viewWidth, viewHeight);
-              const size = Math.floor(minDim * 0.7);
-              return { width: size, height: size };
-            },
-            aspectRatio: 1.0
-          };
-
-          await html5QrCode.start(
-            { facingMode: "environment" },
-            qrConfig,
-            (decodedText: string) => {
-              onScan(decodedText);
-            },
-            () => {
-              // Ignore scan failures (searching...)
-            }
-          );
-          
-          if (isMounted) setIsStarted(true);
-        } catch (err: any) {
-          console.error("Scanner Error:", err);
-          if (isMounted) {
-            setScannerError(err.message || 'Gagal memulai scanner.');
-            setPermissionStatus('denied');
-          }
+          await qrReaderRef.current.stop();
+          qrReaderRef.current = null;
+        } catch (e) {
+          console.error("Stop error:", e);
         }
-      };
+      }
+    };
 
-      // Ensure DOM is ready, specifically for the qr-reader div
-      const timer = setTimeout(() => {
-        startScanning();
-      }, 1000);
+    const startScanning = async () => {
+      await stopScanner();
+      setStatus('initializing');
+      setScannerError(null);
 
+      try {
+        const html5QrCode = new Html5Qrcode("qr-reader");
+        qrReaderRef.current = html5QrCode;
+
+        const config = { 
+          fps: 15, 
+          qrbox: (viewWidth: number, viewHeight: number) => {
+            const size = Math.min(viewWidth, viewHeight) * 0.7;
+            return { width: size, height: size };
+          }
+        };
+
+        // This call SHOULD trigger the permission prompt
+        await html5QrCode.start(
+          { facingMode: "environment" },
+          config,
+          (decodedText: string) => {
+            onScan(decodedText);
+          },
+          () => {} // Search listener
+        );
+
+        setStatus('scanning');
+      } catch (err: any) {
+        console.error("Scanner startup failed:", err);
+        setStatus('error');
+        setScannerError(err.toString() || 'Gagal mengakses kamera');
+      }
+    };
+
+    useEffect(() => {
+      // Small delay to ensure the div is mounted
+      const timer = setTimeout(startScanning, 1000);
       return () => {
-        isMounted = false;
         clearTimeout(timer);
-        if (qrReaderRef.current && qrReaderRef.current.isScanning) {
-          qrReaderRef.current.stop().catch((e: any) => console.log("Stop failed", e));
-        }
+        stopScanner();
       };
-    }, [onScan]);
+    }, []);
 
     return (
       <div className="relative group">
-        <div id="qr-reader" className="w-full max-w-sm mx-auto overflow-hidden rounded-3xl border-4 border-zinc-100 bg-zinc-900 min-h-[350px] shadow-2xl transition-all group-hover:border-emerald-500/20" />
+        <div id="qr-reader" className="w-full max-w-sm mx-auto overflow-hidden rounded-3xl border-4 border-zinc-100 bg-zinc-900 min-h-[350px] shadow-2xl transition-all" />
         
-        {(!isStarted || permissionStatus === 'prompt') && !scannerError && (
+        {status === 'initializing' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-50 rounded-3xl p-8 text-center z-10 border border-zinc-200">
              <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mb-6">
                 <RefreshCcw className="w-8 h-8 text-emerald-600 animate-spin" />
@@ -314,36 +298,43 @@ export default function App() {
              <p className="text-lg font-black text-zinc-900 mb-2 uppercase tracking-tight">Menyiapkan Kamera</p>
              <p className="text-xs text-zinc-500 font-medium leading-relaxed max-w-[200px]">
                 Sedang meminta izin akses kamera. <br />
-                Harap klik <span className="text-emerald-600 font-bold">"Allow"</span> pada notifikasi browser Anda.
+                Harap klik <span className="text-emerald-600 font-bold">"Allow"</span> atau <span className="text-emerald-600 font-bold">"Izinkan"</span>.
              </p>
           </div>
         )}
 
-        {scannerError && (
+        {status === 'error' && (
           <div className="absolute inset-0 flex items-center justify-center bg-zinc-950 rounded-3xl p-8 text-center z-50">
-             <div className="text-white">
+             <div className="text-white w-full">
                 <div className="w-16 h-16 bg-rose-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
                   <AlertCircle className="w-8 h-8 text-rose-500" />
                 </div>
-                <p className="font-black text-xl mb-2 uppercase tracking-wide">Akses Ditolak</p>
-                <p className="text-[12px] text-zinc-400 mb-8 leading-relaxed px-4">
-                  Sistem tidak dapat mengakses kamera. <br />
-                  Silakan periksa pengaturan izin kamera di browser Anda.
-                </p>
-                <button 
-                  onClick={() => window.location.reload()}
-                  className="w-full py-4 bg-white text-zinc-900 rounded-2xl font-black text-xs tracking-widest shadow-xl hover:bg-zinc-100 transition-all border-b-4 border-zinc-200 active:border-b-0 active:translate-y-1"
-                >
-                  RELOAD & COBA LAGI
-                </button>
+                <p className="font-black text-xl mb-2 uppercase tracking-wide">Kamera Tidak Aktif</p>
+                <div className="bg-zinc-900 p-3 rounded-lg mb-8 text-[11px] text-zinc-400 font-mono break-all leading-relaxed">
+                  {scannerError}
+                </div>
+                <div className="space-y-3">
+                  <button 
+                    onClick={startScanning}
+                    className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black text-xs tracking-widest shadow-xl hover:bg-emerald-500 transition-all active:scale-95"
+                  >
+                    COBA AKTIFKAN LAGI
+                  </button>
+                  <button 
+                    onClick={() => window.location.reload()}
+                    className="w-full py-4 bg-zinc-800 text-white rounded-2xl font-black text-xs tracking-widest shadow-xl hover:bg-zinc-700 transition-all"
+                  >
+                    RELOAD HALAMAN
+                  </button>
+                </div>
              </div>
           </div>
         )}
         
-        {isStarted && (
+        {status === 'scanning' && (
            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 bg-emerald-600/90 text-white rounded-full backdrop-blur-md flex items-center gap-2 border border-white/20">
               <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-              <span className="text-[10px] font-black uppercase tracking-widest">Kamera Aktif</span>
+              <span className="text-[10px] font-black uppercase tracking-widest">Scanner Aktif</span>
            </div>
         )}
       </div>
