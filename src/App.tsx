@@ -6,6 +6,8 @@ import { collection, query, where, getDocs, addDoc, onSnapshot, serverTimestamp,
 import * as XLSX from 'xlsx';
 import { QRCodeCanvas } from 'qrcode.react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 interface Student {
   id: string;
@@ -49,8 +51,10 @@ export default function App() {
   const [isUploading, setIsUploading] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+  const [adminClickCount, setAdminClickCount] = useState(0);
 
   const adminKeyBuffer = useRef<string[]>([]);
+  const barcodeRef = useRef<HTMLDivElement>(null);
   // Menggunakan Mei karena April sudah terlewat di sistem
   const targetTime = new Date(2026, 4, 2, 8, 0, 0).getTime(); 
 
@@ -282,6 +286,48 @@ export default function App() {
     } finally {
       setIsResetting(false);
     }
+  };
+
+  const handleDownloadBarcodePDF = async () => {
+    if (!barcodeRef.current || !successRSVP) return;
+    
+    try {
+      const canvas = await html2canvas(barcodeRef.current, {
+        scale: 3,
+        backgroundColor: '#ffffff',
+        logging: false,
+        useCORS: true
+      });
+      
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: [100, 150] 
+      });
+      
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`Barcode_${successRSVP.nama.replace(/\s+/g, '_')}.pdf`);
+    } catch (error) {
+      console.error('PDF export error:', error);
+      alert('Gagal mengekspor PDF.');
+    }
+  };
+
+  const handleFooterClick = () => {
+    setAdminClickCount(prev => {
+      const next = prev + 1;
+      if (next >= 5) {
+        setShowAdmin(true);
+        return 0;
+      }
+      return next;
+    });
+    // Reset counter after 2 seconds of inactivity
+    setTimeout(() => setAdminClickCount(0), 2000);
   };
 
   const downloadTemplate = () => {
@@ -763,8 +809,12 @@ export default function App() {
 
       {/* Footer */}
       <footer className="py-12 bg-white text-center border-t border-zinc-100">
-        <p className="text-zinc-500 text-sm">
-          &copy; 2026 • MTs KH A Wahab Muhsin. All rights reserved.
+        <p 
+          className="text-zinc-400 text-[10px] uppercase tracking-widest font-bold cursor-default select-none"
+          onClick={handleFooterClick}
+        >
+          &copy; 2026 • MTs KH A Wahab Muhsin <br />
+          <span className="opacity-50">Digital Invitation System</span>
         </p>
       </footer>
 
@@ -815,7 +865,7 @@ export default function App() {
                 <p className="text-zinc-500 text-sm mt-2">Terima kasih telah melakukan konfirmasi kehadiran.</p>
               </div>
 
-              <div className="bg-zinc-50 p-6 rounded-3xl border-2 border-dashed border-zinc-200 mb-6 flex flex-col items-center">
+              <div ref={barcodeRef} className="bg-zinc-50 p-6 rounded-3xl border-2 border-dashed border-zinc-200 mb-6 flex flex-col items-center">
                 <p className="text-[10px] uppercase font-bold tracking-widest text-zinc-400 mb-4">Scan Barcode Check-in</p>
                 <div className="bg-white p-4 rounded-2xl shadow-xl">
                   <QRCodeCanvas 
@@ -833,11 +883,11 @@ export default function App() {
 
               <div className="space-y-3">
                 <button 
-                  onClick={() => window.print()}
+                  onClick={handleDownloadBarcodePDF}
                   className="w-full py-4 bg-zinc-900 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-zinc-800 transition-all"
                 >
                   <Download className="w-4 h-4" />
-                  Simpan Barcode
+                  Simpan Barcode (PDF)
                 </button>
                 <button 
                   onClick={() => setSuccessRSVP(null)}
