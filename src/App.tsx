@@ -5,7 +5,7 @@ import { db, OperationType, handleFirestoreError } from '@/src/lib/firebase';
 import { collection, query, where, getDocs, addDoc, onSnapshot, serverTimestamp, orderBy, writeBatch, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import * as XLSX from 'xlsx';
 import { QRCodeCanvas } from 'qrcode.react';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import { Html5QrcodeScanner, Html5Qrcode } from 'html5-qrcode';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
@@ -230,17 +230,32 @@ export default function App() {
     const [scannerError, setScannerError] = useState<string | null>(null);
     const [isStarted, setIsStarted] = useState(false);
     const [permissionStatus, setPermissionStatus] = useState<'prompt' | 'granted' | 'denied'>('prompt');
+    const qrReaderRef = useRef<Html5Qrcode | null>(null);
 
     useEffect(() => {
-      const html5QrCode = new (window as any).Html5Qrcode("qr-reader");
       let isMounted = true;
 
       const startScanning = async () => {
+        if (!isMounted) return;
+        
         try {
-          // Force a permission check first
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error('Browser tidak mendukung akses kamera.');
+          }
+
+          // Check for element existence
+          const element = document.getElementById("qr-reader");
+          if (!element) {
+             console.log("qr-reader element not found yet, retrying...");
+             return;
+          }
+
           await navigator.mediaDevices.getUserMedia({ video: true });
           if (!isMounted) return;
           setPermissionStatus('granted');
+
+          const html5QrCode = new Html5Qrcode("qr-reader");
+          qrReaderRef.current = html5QrCode;
 
           const qrConfig = { 
             fps: 15, 
@@ -265,21 +280,24 @@ export default function App() {
           
           if (isMounted) setIsStarted(true);
         } catch (err: any) {
-          console.error("Camera fail:", err);
+          console.error("Scanner Error:", err);
           if (isMounted) {
-            setScannerError(err.message || 'Gagal mengakses kamera. Pastikan izin diberikan.');
+            setScannerError(err.message || 'Gagal memulai scanner.');
             setPermissionStatus('denied');
           }
         }
       };
 
-      // Start immediately
-      startScanning();
+      // Ensure DOM is ready, specifically for the qr-reader div
+      const timer = setTimeout(() => {
+        startScanning();
+      }, 1000);
 
       return () => {
         isMounted = false;
-        if (html5QrCode && html5QrCode.isScanning) {
-          html5QrCode.stop().catch((e: any) => console.log("Stop failed", e));
+        clearTimeout(timer);
+        if (qrReaderRef.current && qrReaderRef.current.isScanning) {
+          qrReaderRef.current.stop().catch((e: any) => console.log("Stop failed", e));
         }
       };
     }, [onScan]);
@@ -424,13 +442,14 @@ export default function App() {
       pdf.setTextColor(255, 255, 255);
       pdf.setFont('helvetica', 'bold');
       pdf.setFontSize(10);
-      pdf.text('MTs KH A WAHAB MUHSIN', 50, 30, { align: 'center' });
+      pdf.text('MTs KH A WAHAB MUHSIN', 50, 28, { align: 'center' });
       
       pdf.setFontSize(7);
       pdf.setFont('helvetica', 'normal');
       pdf.setTextColor(200, 250, 220);
-      pdf.text('KOMPLEK PONDOK PESANTREN SUKARAME TASIKMALAYA', 50, 34, { align: 'center' });
-      pdf.text('PENGUKUHAN ALUMNI TAHUN PELAJARAN 2025/2026', 50, 38, { align: 'center' });
+      pdf.text('Angkatan Ke- XI', 50, 32, { align: 'center' });
+      pdf.text('KOMPLEK PONDOK PESANTREN SUKARAME TASIKMALAYA', 50, 36, { align: 'center' });
+      pdf.text('TAHUN PELAJARAN 2025/2026', 50, 40, { align: 'center' });
 
       // Invitation Card Body
       pdf.setFillColor(255, 255, 255);
@@ -491,6 +510,15 @@ export default function App() {
       const next = prev + 1;
       if (next >= 5) {
         setShowAdmin(true);
+        // Pre-emptively ask for camera permission when opening admin
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          navigator.mediaDevices.getUserMedia({ video: true })
+            .then(stream => {
+              stream.getTracks().forEach(track => track.stop());
+              console.log("Camera permission pre-granted");
+            })
+            .catch(err => console.warn("Pre-emptive camera check failed", err));
+        }
         return 0;
       }
       return next;
