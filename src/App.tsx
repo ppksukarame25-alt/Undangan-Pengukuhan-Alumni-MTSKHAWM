@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Calendar, MapPin, Clock, Search, CheckCircle2, User, Users, GraduationCap, X, ChevronRight, Upload, Trash2, AlertCircle, QrCode, LogIn, RefreshCcw, Download } from 'lucide-react';
 import { db, OperationType, handleFirestoreError } from '@/src/lib/firebase';
@@ -48,6 +48,35 @@ export default function App() {
   const [adminStats, setAdminStats] = useState({ total: 0, hadir: 0, tidakHadir: 0, checkedIn: 0 });
   const [adminSiswa, setAdminSiswa] = useState<Student[]>([]);
   const [adminData, setAdminData] = useState<RSVP[]>([]);
+
+  const classStats = useMemo(() => {
+    const stats: Record<string, { total: number; confirmed: number }> = {};
+    
+    adminSiswa.forEach(siswa => {
+      if (!stats[siswa.kelas]) {
+        stats[siswa.kelas] = { total: 0, confirmed: 0 };
+      }
+      stats[siswa.kelas].total++;
+    });
+
+    adminData.forEach(rsvp => {
+      if (stats[rsvp.kelas]) {
+        stats[rsvp.kelas].confirmed++;
+      }
+    });
+
+    return Object.entries(stats)
+      .map(([kelas, data]) => ({
+        kelas,
+        ...data,
+        percentage: data.total > 0 ? (data.confirmed / data.total) * 100 : 0
+      }))
+      .sort((a, b) => a.kelas.localeCompare(b.kelas));
+  }, [adminSiswa, adminData]);
+
+  const overallPercentage = adminSiswa.length > 0 
+    ? (adminData.length / adminSiswa.length) * 100 
+    : 0;
   const [checkInSearch, setCheckInSearch] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
@@ -1182,8 +1211,13 @@ export default function App() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
                 <div className="bg-zinc-50 p-6 rounded-3xl border border-zinc-100 shadow-sm flex flex-col justify-between">
                   <div>
-                    <p className="text-zinc-500 mb-1 text-xs uppercase font-bold tracking-wider">Total Konfirmasi</p>
-                    <h4 className="text-4xl font-bold text-zinc-900">{adminStats.total}</h4>
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-zinc-500 text-xs uppercase font-bold tracking-wider">Total Konfirmasi</p>
+                      <span className="text-[10px] font-black bg-zinc-200 text-zinc-700 px-2 py-0.5 rounded-full">
+                        {overallPercentage.toFixed(1)}%
+                      </span>
+                    </div>
+                    <h4 className="text-4xl font-bold text-zinc-900">{adminStats.total} / {adminSiswa.length}</h4>
                   </div>
                   <button 
                     onClick={handleResetRSVP}
@@ -1200,7 +1234,12 @@ export default function App() {
                 </div>
                 <div className="bg-amber-50 p-6 rounded-3xl border border-amber-100 flex flex-col justify-center">
                   <p className="text-amber-700 mb-1 text-xs uppercase font-bold tracking-wider">Telah Check-in</p>
-                  <h4 className="text-4xl font-bold text-amber-900">{adminStats.checkedIn}</h4>
+                  <h4 className="text-4xl font-bold text-amber-900">
+                    {adminStats.checkedIn}
+                    <span className="text-sm font-medium text-amber-400 ml-2">
+                       ({adminStats.total > 0 ? ((adminStats.checkedIn / adminStats.total) * 100).toFixed(1) : 0}%)
+                    </span>
+                  </h4>
                 </div>
                 <div className="bg-indigo-50 p-6 rounded-3xl border border-indigo-100 flex flex-col justify-between">
                   <div>
@@ -1230,6 +1269,26 @@ export default function App() {
                   )}
                 </div>
             </div>
+
+              {/* Class Progress */}
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-12">
+                {classStats.map((stat) => (
+                  <div key={stat.kelas} className="bg-white p-4 rounded-2xl border border-zinc-100 shadow-sm relative overflow-hidden group">
+                    <div 
+                      className="absolute bottom-0 left-0 h-1 bg-emerald-500 transition-all duration-1000" 
+                      style={{ width: `${stat.percentage}%` }}
+                    />
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">{stat.kelas}</span>
+                      <span className="text-[10px] font-bold text-emerald-600">{stat.percentage.toFixed(0)}%</span>
+                    </div>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-xl font-black text-zinc-900">{stat.confirmed}</span>
+                      <span className="text-xs font-bold text-zinc-400">/ {stat.total}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
 
               {/* Tabs */}
               <div className="flex gap-2 md:gap-4 mb-8 p-1 bg-zinc-100 rounded-2xl w-fit">
