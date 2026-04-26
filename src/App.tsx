@@ -230,6 +230,7 @@ export default function App() {
     const [scannerError, setScannerError] = useState<string | null>(null);
     const [status, setStatus] = useState<'idle' | 'initializing' | 'scanning' | 'error'>('idle');
     const qrReaderRef = useRef<Html5Qrcode | null>(null);
+    const readerId = useRef(`qr-reader-${Math.random().toString(36).substring(2, 9)}`);
 
     const stopScanner = async () => {
       if (qrReaderRef.current && qrReaderRef.current.isScanning) {
@@ -243,52 +244,73 @@ export default function App() {
     };
 
     const startScanning = async () => {
+      if (status === 'scanning' || status === 'initializing') return;
+      
       await stopScanner();
       setStatus('initializing');
       setScannerError(null);
 
       try {
-        const html5QrCode = new Html5Qrcode("qr-reader");
+        // Request persistent permission first to ensure prompt appears
+        try {
+          await navigator.mediaDevices.getUserMedia({ video: true });
+        } catch (permErr) {
+          console.warn("Permission pre-check failed", permErr);
+          // Continue anyway, start() will trigger it too
+        }
+
+        // Wait for DOM
+        let retryCount = 0;
+        let element = document.getElementById(readerId.current);
+        while (!element && retryCount < 10) {
+          await new Promise(resolve => setTimeout(resolve, 300));
+          element = document.getElementById(readerId.current);
+          retryCount++;
+        }
+
+        if (!element) {
+          throw new Error("Elemen scanner tidak ditemukan di DOM (Timeout).");
+        }
+
+        const html5QrCode = new Html5Qrcode(readerId.current);
         qrReaderRef.current = html5QrCode;
 
         const config = { 
-          fps: 15, 
+          fps: 10, 
           qrbox: (viewWidth: number, viewHeight: number) => {
-            const size = Math.min(viewWidth, viewHeight) * 0.7;
-            return { width: size, height: size };
-          }
+            const size = Math.min(viewWidth, viewHeight) * 0.8;
+            return { width: Math.max(size, 200), height: Math.max(size, 200) };
+          },
+          aspectRatio: 1.0
         };
 
-        // This call SHOULD trigger the permission prompt
         await html5QrCode.start(
           { facingMode: "environment" },
           config,
           (decodedText: string) => {
-            onScan(decodedText);
+             onScan(decodedText);
           },
-          () => {} // Search listener
+          () => {} 
         );
 
         setStatus('scanning');
       } catch (err: any) {
         console.error("Scanner startup failed:", err);
         setStatus('error');
-        setScannerError(err.toString() || 'Gagal mengakses kamera');
+        setScannerError(err.toString() || 'Gagal mengakses kamera.');
       }
     };
 
     useEffect(() => {
-      // Small delay to ensure the div is mounted
-      const timer = setTimeout(startScanning, 1000);
+      startScanning();
       return () => {
-        clearTimeout(timer);
         stopScanner();
       };
     }, []);
 
     return (
       <div className="relative group">
-        <div id="qr-reader" className="w-full max-w-sm mx-auto overflow-hidden rounded-3xl border-4 border-zinc-100 bg-zinc-900 min-h-[350px] shadow-2xl transition-all" />
+        <div id={readerId.current} className="w-full max-w-sm mx-auto overflow-hidden rounded-3xl border-4 border-zinc-100 bg-zinc-900 min-h-[350px] shadow-2xl transition-all" />
         
         {status === 'initializing' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-50 rounded-3xl p-8 text-center z-10 border border-zinc-200">
@@ -377,6 +399,26 @@ export default function App() {
       }
     } finally {
       setIsResetting(false);
+    }
+  };
+
+  const handleDeleteRSVP = async (id: string) => {
+    if (!window.confirm('Hapus data konfirmasi ini?')) return;
+    try {
+      await deleteDoc(doc(db, 'konfirmasi', id));
+    } catch (error) {
+      console.error('Delete RSVP error:', error);
+      alert('Gagal menghapus data.');
+    }
+  };
+
+  const handleDeleteSiswa = async (id: string) => {
+    if (!window.confirm('Hapus data siswa ini?')) return;
+    try {
+      await deleteDoc(doc(db, 'siswa', id));
+    } catch (error) {
+      console.error('Delete Siswa error:', error);
+      alert('Gagal menghapus data.');
     }
   };
 
@@ -1218,11 +1260,12 @@ export default function App() {
                         <th className="p-6 text-center">Check-in</th>
                         <th className="p-6">Pendamping</th>
                         <th className="p-6">Waktu RSVP</th>
+                        <th className="p-6 text-center">Aksi</th>
                       </tr>
                     </thead>
                     <tbody>
                       {adminData.length === 0 ? (
-                        <tr><td colSpan={5} className="p-12 text-center text-zinc-500 font-medium">Belum ada konfirmasi.</td></tr>
+                        <tr><td colSpan={6} className="p-12 text-center text-zinc-500 font-medium">Belum ada konfirmasi.</td></tr>
                       ) : adminData.map((row) => (
                         <tr key={row.id} className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50">
                           <td className="p-6 font-semibold">
@@ -1256,6 +1299,15 @@ export default function App() {
                           </td>
                           <td className="p-6 text-[10px] text-zinc-500 font-medium">
                             {row.timestamp?.toDate().toLocaleString('id-ID')}
+                          </td>
+                          <td className="p-6 text-center">
+                            <button 
+                              onClick={() => handleDeleteRSVP(row.id!)}
+                              className="p-2 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-600 hover:text-white transition-all shadow-sm"
+                              title="Hapus RSVP"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -1335,7 +1387,19 @@ export default function App() {
                                  .map((row) => (
                                     <div key={row.id} className="flex items-center justify-between p-4 bg-zinc-50 border border-zinc-100 rounded-2xl transition-colors hover:bg-zinc-100">
                                        <div>
-                                          <p className="font-bold text-zinc-900">{row.nama}</p>
+                                          <div className="flex items-center gap-3">
+                                              <p className="font-bold text-zinc-900">{row.nama}</p>
+                                              <button 
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  handleDeleteRSVP(row.id!);
+                                                }}
+                                                className="p-1 text-zinc-400 hover:text-rose-500 transition-colors"
+                                                title="Hapus RSVP"
+                                              >
+                                                <Trash2 className="w-4 h-4" />
+                                              </button>
+                                           </div>
                                           <p className="text-[10px] font-medium text-zinc-500 uppercase tracking-tight">{row.kelas} • {row.alamat}</p>
                                        </div>
                                        {row.checkedIn ? (
@@ -1371,16 +1435,26 @@ export default function App() {
                         <th className="p-6">Nama</th>
                         <th className="p-6">Kelas</th>
                         <th className="p-6">Alamat</th>
+                        <th className="p-6 text-center">Aksi</th>
                       </tr>
                     </thead>
                     <tbody>
                       {adminSiswa.length === 0 ? (
-                        <tr><td colSpan={3} className="p-12 text-center text-zinc-400">Belum ada data siswa. Silakan upload Excel.</td></tr>
+                        <tr><td colSpan={4} className="p-12 text-center text-zinc-400">Belum ada data siswa. Silakan upload Excel.</td></tr>
                       ) : adminSiswa.map((row) => (
                         <tr key={row.id} className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50">
                           <td className="p-6 font-semibold text-zinc-900">{row.nama}</td>
                           <td className="p-6 text-zinc-600 font-medium">{row.kelas}</td>
                           <td className="p-6 text-zinc-500 text-sm">{row.alamat}</td>
+                          <td className="p-6 text-center">
+                            <button 
+                              onClick={() => handleDeleteSiswa(row.id)}
+                              className="p-2 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-600 hover:text-white transition-all shadow-sm"
+                              title="Hapus Siswa"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
