@@ -233,48 +233,42 @@ export default function App() {
     useEffect(() => {
       let scanner: Html5QrcodeScanner | null = null;
       
-      const startScanner = async () => {
+      const startScanner = () => {
         try {
-          const devices = await navigator.mediaDevices.enumerateDevices();
-          const hasCamera = devices.some(device => device.kind === 'videoinput');
-          
-          if (!hasCamera) {
-            setScannerError('Kamera tidak ditemukan pada perangkat ini.');
-            return;
-          }
+          const scannerConfig = { 
+            fps: 15, 
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0,
+            showTorchButtonIfSupported: true,
+            rememberLastUsedCamera: true
+          };
 
           scanner = new Html5QrcodeScanner(
             "qr-reader",
-            { 
-              fps: 15, 
-              qrbox: { width: 250, height: 250 },
-              aspectRatio: 1.0,
-              showTorchButtonIfSupported: true,
-              rememberLastUsedCamera: true,
-              supportedScanTypes: [0] // 0 means Html5QrcodeScanType.SCAN_TYPE_CAMERA
-            },
+            scannerConfig,
             /* verbose= */ false
           );
 
           scanner.render((decodedText) => {
             onScan(decodedText);
           }, (error) => {
-            // ignore scan failures
+            // Ignore common scan failures
           });
           
           setIsStarted(true);
         } catch (err: any) {
           console.error("Scanner initialization error:", err);
-          setScannerError(err.message || 'Gagal memulai scanner.');
+          setScannerError('Gagal memuat scanner QR. Pastikan izin kamera diberikan.');
         }
       };
 
-      const timeout = setTimeout(startScanner, 1000);
+      // Ensure DOM is ready, specifically for the qr-reader div
+      const timeout = setTimeout(startScanner, 1500);
 
       return () => {
         clearTimeout(timeout);
         if (scanner) {
-          scanner.clear().catch(error => console.error("Failed to clear scanner", error));
+          scanner.clear().catch(err => console.debug("Scanner clear skipped", err));
         }
       };
     }, [onScan]);
@@ -285,21 +279,21 @@ export default function App() {
         {!isStarted && !scannerError && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-50 rounded-2xl p-6 text-center z-10">
              <RefreshCcw className="w-8 h-8 text-emerald-600 animate-spin mb-4" />
-             <p className="text-sm font-bold text-zinc-600">Menunggu Izin Kamera...</p>
-             <p className="text-[10px] text-zinc-400 mt-2">Pastikan Anda telah mengizinkan akses kamera di browser.</p>
+             <p className="text-sm font-bold text-zinc-600">Mengaktifkan Kamera...</p>
+             <p className="text-[10px] text-zinc-400 mt-2 italic px-8">Klik "Allow" atau "Izinkan" jika muncul permintaan akses kamera.</p>
           </div>
         )}
         {scannerError && (
           <div className="absolute inset-0 flex items-center justify-center bg-zinc-950 rounded-2xl p-6 text-center z-50">
              <div className="text-white">
                 <AlertCircle className="w-12 h-12 mx-auto mb-4 text-rose-500" />
-                <p className="font-bold mb-2">Kamera Tidak Diakses</p>
-                <p className="text-xs opacity-70 mb-4">{scannerError}</p>
+                <p className="font-bold mb-2 uppercase tracking-wide">Kamera Bermasalah</p>
+                <p className="text-[11px] opacity-70 mb-4">{scannerError}</p>
                 <button 
                   onClick={() => window.location.reload()}
-                  className="px-6 py-2 bg-white text-zinc-900 rounded-xl font-bold text-sm"
+                  className="px-6 py-2 bg-white text-zinc-900 rounded-xl font-bold text-sm shadow-xl"
                 >
-                  Coba Lagi (Reload)
+                  RELOAD HALAMAN
                 </button>
              </div>
           </div>
@@ -348,30 +342,85 @@ export default function App() {
   };
 
   const handleDownloadBarcodePDF = async () => {
-    if (!barcodeRef.current || !successRSVP) return;
+    if (!successRSVP) return;
     
     try {
-      const canvas = await html2canvas(barcodeRef.current, {
-        scale: 3,
-        backgroundColor: '#ffffff',
-        logging: false,
-        useCORS: true
-      });
-      
-      const imgData = canvas.toDataURL('image/png');
+      // Create high-quality PDF
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
-        format: [100, 150] 
+        format: [100, 150]
       });
+
+      // Draw PDF manually for reliability
+      const primaryColor = '#064e3b'; // emerald-900
+      const accentColor = '#059669'; // emerald-600
+      const textColor = '#18181b'; // zinc-900
+      const muteColor = '#71717a'; // zinc-500
+
+      // Header Section
+      pdf.setFillColor(primaryColor);
+      pdf.rect(0, 0, 100, 35, 'F');
+
+      // Logo Circle
+      pdf.setFillColor(255, 255, 255);
+      pdf.circle(18, 17.5, 8, 'F');
       
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
+      // Logo Letter "W"
+      pdf.setTextColor(primaryColor);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(16);
+      pdf.text('W', 15.5, 20.5);
+
+      // School Name
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(11);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('MTs KH A WAHAB MUHSIN', 30, 16);
       
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`Barcode_${successRSVP.nama.replace(/\s+/g, '_')}.pdf`);
+      pdf.setFontSize(8);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(200, 250, 220);
+      pdf.text('PENGUKUHAN ALUMNI 2025/2026', 30, 21);
+
+      // Separator Line
+      pdf.setDrawColor(255, 255, 255);
+      pdf.setLineWidth(0.5);
+      pdf.line(10, 35, 90, 35);
+
+      // Attendee Info
+      pdf.setTextColor(textColor);
+      pdf.setFontSize(16);
+      pdf.setFont('helvetica', 'bold');
+      const name = successRSVP.nama.toUpperCase();
+      pdf.text(name, 50, 55, { align: 'center' });
+      
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(muteColor);
+      pdf.text(`${successRSVP.kelas} • ${successRSVP.alamat}`, 50, 62, { align: 'center' });
+
+      // QR Code Container
+      pdf.setDrawColor(240, 240, 240);
+      pdf.rect(20, 75, 60, 60);
+
+      // Get QR Code from Canvas
+      const canvas = barcodeRef.current?.querySelector('canvas');
+      if (canvas) {
+        const qrImgData = canvas.toDataURL('image/png');
+        pdf.addImage(qrImgData, 'PNG', 22.5, 77.5, 55, 55);
+      }
+
+      // Footer
+      pdf.setFontSize(9);
+      pdf.setTextColor(accentColor);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('SCAN QR CODE CHECK-IN', 50, 145, { align: 'center' });
+
+      // Save
+      pdf.save(`Barcode_Pengukuhan_${successRSVP.nama.replace(/\s+/g, '_')}.pdf`);
     } catch (error) {
-      console.error('PDF export error:', error);
+      console.error('PDF manual export error:', error);
       alert('Gagal mengekspor PDF.');
     }
   };
