@@ -40,6 +40,7 @@ export default function App() {
   const [showToast, setShowToast] = useState(false);
   const [successRSVP, setSuccessRSVP] = useState<RSVP | null>(null);
   const [duplicateRSVP, setDuplicateRSVP] = useState<string | null>(null);
+  const [selectedRSVPForBarcode, setSelectedRSVPForBarcode] = useState<RSVP | null>(null);
   const [showAdmin, setShowAdmin] = useState(false);
   const [adminTab, setAdminTab] = useState<'rsvp' | 'siswa' | 'checkin'>('rsvp');
   const [checkInMode, setCheckInMode] = useState<'manual' | 'scan'>('manual');
@@ -55,6 +56,7 @@ export default function App() {
 
   const adminKeyBuffer = useRef<string[]>([]);
   const barcodeRef = useRef<HTMLDivElement>(null);
+  const adminBarcodeRef = useRef<HTMLDivElement>(null);
   // Menggunakan Mei karena April sudah terlewat di sistem
   const targetTime = new Date(2026, 4, 2, 8, 0, 0).getTime(); 
 
@@ -422,8 +424,9 @@ export default function App() {
     }
   };
 
-  const handleDownloadBarcodePDF = async () => {
-    if (!successRSVP) return;
+  const handleDownloadBarcodePDF = async (customRSVP?: RSVP) => {
+    const data = customRSVP || successRSVP;
+    if (!data) return;
     
     try {
       const pdf = new jsPDF({
@@ -496,13 +499,13 @@ export default function App() {
       pdf.setTextColor(textColor);
       pdf.setFontSize(14);
       pdf.setFont('helvetica', 'bold');
-      const name = successRSVP.nama.toUpperCase();
+      const name = data.nama.toUpperCase();
       pdf.text(name, 50, 65, { align: 'center' });
       
       pdf.setFontSize(9);
       pdf.setFont('helvetica', 'normal');
       pdf.setTextColor(muteColor);
-      pdf.text(`${successRSVP.kelas} • ${successRSVP.alamat}`, 50, 71, { align: 'center' });
+      pdf.text(`${data.kelas} • ${data.alamat}`, 50, 71, { align: 'center' });
 
       // Separator Line
       pdf.setDrawColor(245, 245, 245);
@@ -513,7 +516,8 @@ export default function App() {
       pdf.roundedRect(25, 83, 50, 50, 3, 3, 'F');
 
       // Get QR Code from Canvas
-      const canvas = barcodeRef.current?.querySelector('canvas');
+      const activeRef = customRSVP ? adminBarcodeRef : barcodeRef;
+      const canvas = activeRef.current?.querySelector('canvas');
       if (canvas) {
         const qrImgData = canvas.toDataURL('image/png');
         pdf.addImage(qrImgData, 'PNG', 27.5, 85.5, 45, 45);
@@ -530,7 +534,7 @@ export default function App() {
       pdf.text('Digital Invitation System © 2026', 50, 145, { align: 'center' });
 
       // Save
-      pdf.save(`Undangan_Pengukuhan_${successRSVP.nama.replace(/\s+/g, '_')}.pdf`);
+      pdf.save(`Undangan_Pengukuhan_${data.nama.replace(/\s+/g, '_')}.pdf`);
     } catch (error) {
       console.error('PDF manual export error:', error);
       alert('Gagal mengekspor PDF.');
@@ -1257,6 +1261,7 @@ export default function App() {
                       <tr>
                         <th className="p-6">Nama</th>
                         <th className="p-6 text-center">Status</th>
+                        <th className="p-6 text-center text-xs">Barcode</th>
                         <th className="p-6 text-center">Check-in</th>
                         <th className="p-6">Pendamping</th>
                         <th className="p-6">Waktu RSVP</th>
@@ -1278,6 +1283,15 @@ export default function App() {
                             }`}>
                               {row.status}
                             </span>
+                          </td>
+                          <td className="p-6 text-center">
+                            <button 
+                              onClick={() => setSelectedRSVPForBarcode(row)}
+                              className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-600 hover:text-white transition-all shadow-sm"
+                              title="Lihat Barcode"
+                            >
+                              <QrCode className="w-4 h-4" />
+                            </button>
                           </td>
                           <td className="p-6 text-center">
                             {row.checkedIn ? (
@@ -1427,6 +1441,7 @@ export default function App() {
                            </div>
                         )}
                      </div>
+
                   </div>
                 ) : (
                   <table className="w-full text-left">
@@ -1461,6 +1476,62 @@ export default function App() {
                   </table>
                 )}
               </div>
+
+              {/* Admin Barcode Modal */}
+              <AnimatePresence>
+                {selectedRSVPForBarcode && (
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-zinc-950/80 backdrop-blur-sm"
+                  >
+                    <motion.div 
+                      initial={{ scale: 0.9, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.9, opacity: 0 }}
+                      className="bg-white rounded-[40px] p-8 max-w-sm w-full relative shadow-2xl shadow-emerald-500/20"
+                    >
+                      <button 
+                        onClick={() => setSelectedRSVPForBarcode(null)}
+                        className="absolute top-6 right-6 p-2 bg-zinc-100 rounded-full text-zinc-400 hover:text-zinc-600 transition-colors"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+
+                      <div className="text-center mb-8">
+                        <h4 className="text-xl font-black text-zinc-900 uppercase tracking-tighter mb-1">Barcode Undangan</h4>
+                        <p className="text-xs text-zinc-500 font-medium">{selectedRSVPForBarcode.nama}</p>
+                      </div>
+
+                      <div ref={adminBarcodeRef} className="bg-zinc-50 p-6 rounded-[32px] border-4 border-white shadow-inner flex flex-col items-center mb-8">
+                        <QRCodeCanvas 
+                          value={selectedRSVPForBarcode.id || ''} 
+                          size={180} 
+                          level="H" 
+                          includeMargin={true}
+                        />
+                      </div>
+
+                      <div className="space-y-3">
+                        <button 
+                          onClick={() => handleDownloadBarcodePDF(selectedRSVPForBarcode)}
+                          className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black text-xs tracking-widest shadow-lg shadow-emerald-600/20 hover:bg-emerald-500 transition-all active:scale-95 flex items-center justify-center gap-2"
+                        >
+                          <Download className="w-4 h-4" />
+                          DOWNLOAD PDF
+                        </button>
+                        <button 
+                          onClick={() => setSelectedRSVPForBarcode(null)}
+                          className="w-full py-4 bg-zinc-100 text-zinc-600 rounded-2xl font-black text-xs tracking-widest hover:bg-zinc-200 transition-all active:scale-95 uppercase"
+                        >
+                          Tutup
+                        </button>
+                      </div>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </motion.div>
         )}
