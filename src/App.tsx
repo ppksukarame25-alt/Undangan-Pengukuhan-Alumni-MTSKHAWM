@@ -86,7 +86,7 @@ export default function App() {
   const adminKeyBuffer = useRef<string[]>([]);
   const barcodeRef = useRef<HTMLDivElement>(null);
   const adminBarcodeRef = useRef<HTMLDivElement>(null);
-  // Menggunakan Mei karena April sudah terlewat di sistem
+  // Target date: 2 Mei 2026
   const targetTime = new Date(2026, 4, 2, 8, 0, 0).getTime(); 
 
   // Handle "admin123" capture
@@ -878,7 +878,7 @@ export default function App() {
                 <Calendar className="w-5 h-5 text-emerald-700" />
               </div>
               <h3 className="font-bold text-sm mb-1">Tanggal</h3>
-              <p className="text-zinc-600 text-xs font-medium">Sabtu, 2 April 2026</p>
+              <p className="text-zinc-600 text-xs font-medium">Sabtu, 2 Mei 2026</p>
             </motion.div>
 
             <motion.div 
